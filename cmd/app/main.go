@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
+
 	"github.com/axschech/rockbot-backend/internal/config"
+	"github.com/axschech/rockbot-backend/internal/database"
+	"github.com/axschech/rockbot-backend/internal/database/repository"
+	"github.com/axschech/rockbot-backend/internal/routing"
 	"github.com/axschech/rockbot-backend/internal/service"
 )
 
@@ -10,8 +15,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	ctx := context.Background()
 
-	service := service.NewService(cfg)
+	db, err := database.NewDatabase(ctx, cfg.DB)
+	if err != nil {
+		panic(err)
+	}
+
+	r := repository.NewRepository(ctx, db)
+
+	router := routing.NewRouter(cfg.Port)
+
+	service := service.NewService(
+		cfg,
+		*r,
+		router,
+	)
 
 	err = service.Run()
 	if err != nil {
