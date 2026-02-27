@@ -36,3 +36,23 @@ func (r *Repository) CreateUser(user entities.UserEntity) (entities.UserEntity, 
 
 	return user, nil
 }
+
+func (r *Repository) GetMedia(media entities.MediaEntity) (entities.MediaEntity, error) {
+	err := r.db.P.QueryRow(r.Ctx, "SELECT id, title FROM media WHERE id=$1 or title=$2", media.ID, media.Title).Scan(&media.ID, &media.Title)
+
+	if err != nil {
+		return entities.MediaEntity{}, err
+	}
+
+	return media, nil
+}
+
+func (r *Repository) CreateMedia(media entities.MediaEntity) (entities.MediaEntity, error) {
+	err := r.db.P.QueryRow(r.Ctx, "INSERT INTO media (title, runtime, type, image_url) VALUES ($1, $2, $3, $4) RETURNING id", media.Title, media.Runtime, media.Type, media.ImageURL).Scan(&media.ID)
+
+	if err != nil {
+		return entities.MediaEntity{}, err
+	}
+
+	return media, nil
+}

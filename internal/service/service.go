@@ -2,8 +2,11 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
+	"github.com/axschech/rockbot-backend/external"
 	"github.com/axschech/rockbot-backend/internal/config"
 	"github.com/axschech/rockbot-backend/internal/database/repository"
 	"github.com/axschech/rockbot-backend/internal/routing"
@@ -38,6 +41,7 @@ func (s *Service) Run() error {
 	s.Router.R.Route("/api", func(r chi.Router) {
 		r.Get("/user/{id}", s.GetUserHandler)
 		r.Post("/user", s.PostUserHandler)
+		r.Get("/search/media", s.QueryMediaHandler)
 	})
 
 	return s.Router.Listen()
@@ -85,4 +89,53 @@ func (s *Service) PostUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(user)
+}
+
+func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		http.Error(w, "Query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	t := r.URL.Query().Get("type")
+	if t == "" {
+		http.Error(w, "Type parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	var mediaType string
+	switch t {
+	case "tv":
+		mediaType = "tvdb"
+	}
+
+	if mediaType == "" {
+		http.Error(w, "Invalid media type", http.StatusBadRequest)
+		return
+	}
+	fmt.Printf("tv config: %v\n", s.Config.TVSource)
+	source := config.Source{
+		BaseURL: s.Config.TVSource.BaseURL,
+		APIKey:  s.Config.TVSource.APIKey,
+		PIN:     s.Config.TVSource.PIN,
+	}
+
+	sourcer := external.GetSource(&http.Client{}, source, "tvdb")
+	resp, err := sourcer.Fetch(query)
+	if err != nil {
+		http.Error(w, "Failed to fetch media", http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Failed to read response body: %v\n", err)
+		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
