@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/axschech/rockbot-backend/external"
 	"github.com/axschech/rockbot-backend/internal/config"
 	"github.com/axschech/rockbot-backend/internal/database/repository"
+	"github.com/axschech/rockbot-backend/internal/entities"
 	"github.com/axschech/rockbot-backend/internal/routing"
 	"github.com/axschech/rockbot-backend/internal/user"
 	"github.com/go-chi/chi/v5"
@@ -104,6 +106,15 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rows, err := s.Repository.QueryMedia(entities.MediaEntity{Title: query})
+	if err != nil && !strings.Contains(err.Error(), "no rows") {
+		fmt.Printf("Failed to query media from database: %v\n", err)
+		http.Error(w, "Failed to query media", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("Queried media from database: %v\n", rows)
+
 	var mediaType string
 	switch t {
 	case "tv":
@@ -114,7 +125,7 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid media type", http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("tv config: %v\n", s.Config.TVSource)
+
 	source := config.Source{
 		BaseURL: s.Config.TVSource.BaseURL,
 		APIKey:  s.Config.TVSource.APIKey,

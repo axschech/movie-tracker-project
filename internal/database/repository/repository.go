@@ -37,14 +37,23 @@ func (r *Repository) CreateUser(user entities.UserEntity) (entities.UserEntity, 
 	return user, nil
 }
 
-func (r *Repository) GetMedia(media entities.MediaEntity) (entities.MediaEntity, error) {
-	err := r.db.P.QueryRow(r.Ctx, "SELECT id, title FROM media WHERE id=$1 or title=$2", media.ID, media.Title).Scan(&media.ID, &media.Title)
+func (r *Repository) QueryMedia(media entities.MediaEntity) ([]entities.MediaEntity, error) {
+	rows, err := r.db.P.Query(r.Ctx, "SELECT * FROM media WHERE title ILIKE $1", "%"+media.Title+"%")
 
 	if err != nil {
-		return entities.MediaEntity{}, err
+		return nil, err
 	}
 
-	return media, nil
+	var medias []entities.MediaEntity
+	for rows.Next() {
+		var m entities.MediaEntity
+		if err := rows.Scan(&m.ID, &m.Title, &m.Runtime, &m.Type, &m.ImageURL); err != nil {
+			return nil, err
+		}
+		medias = append(medias, m)
+	}
+
+	return medias, nil
 }
 
 func (r *Repository) CreateMedia(media entities.MediaEntity) (entities.MediaEntity, error) {
