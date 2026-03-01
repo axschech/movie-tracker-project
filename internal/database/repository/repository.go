@@ -58,7 +58,7 @@ func (r *Repository) QueryMedia(media entities.MediaEntity) ([]entities.MediaEnt
 	return medias, nil
 }
 
-func (r *Repository) CreateMedia(media []entities.MediaEntity) error {
+func (r *Repository) CreateMedia(media []entities.MediaEntity) ([]entities.MediaEntity, error) {
 	// need to add last updated
 	batch := &pgx.Batch{}
 	for _, m := range media {
@@ -68,18 +68,17 @@ func (r *Repository) CreateMedia(media []entities.MediaEntity) error {
 	br := r.db.P.SendBatch(r.Ctx, batch)
 
 	for i := 0; i < batch.Len(); i++ {
-		row, err := br.Query()
-		fmt.Printf("Batch result for index %d: %+v\n", i, row)
+		err := br.QueryRow().Scan(&media[i].ID, &media[i].Title, &media[i].Runtime, &media[i].Type, &media[i].ImageURL, &media[i].Year)
+		fmt.Printf("Inserted media into database: %v\n", media[i])
 		if err != nil {
 			br.Close()
-			return fmt.Errorf("batch execution failed on index %d: %w", i, err)
+			return nil, fmt.Errorf("batch execution failed on index %d: %w", i, err)
 		}
-
 	}
 
 	if err := br.Close(); err != nil {
-		return fmt.Errorf("failed to close batch results: %w", err)
+		return nil, fmt.Errorf("failed to close batch results: %w", err)
 	}
 
-	return nil
+	return media, nil
 }
