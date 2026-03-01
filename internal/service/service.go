@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -105,15 +104,26 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Type parameter is required", http.StatusBadRequest)
 		return
 	}
-
-	rows, err := s.Repository.QueryMedia(entities.MediaEntity{Title: query})
+	var (
+		medias []entities.MediaEntity
+		err    error
+	)
+	medias, err = s.Repository.QueryMedia(entities.MediaEntity{Title: query})
 	if err != nil && !strings.Contains(err.Error(), "no rows") {
 		fmt.Printf("Failed to query media from database: %v\n", err)
 		http.Error(w, "Failed to query media", http.StatusInternalServerError)
 		return
 	}
-
-	fmt.Printf("Queried media from database: %v\n", rows)
+	fmt.Printf("Queried media from database: %v\n", medias)
+	// could update this to get both results and check if the length is equal?
+	// or could do a more refined checked instead of doing things in batches
+	// might also just allow user to manually insert media
+	if len(medias) > 0 {
+		fmt.Printf("Found media in database: %v\n", medias)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(medias)
+		return
+	}
 
 	var mediaType string
 	switch t {
@@ -139,14 +149,49 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	var tvSearchResponse external.TVSearchResponse
+	switch mediaType {
+	case "tvdb":
+		err = json.NewDecoder(resp.Body).Decode(&tvSearchResponse)
+		defer resp.Body.Close()
+		if err != nil {
+			http.Error(w, "Failed to unmarshal response body", http.StatusInternalServerError)
+			return
+		}
+		for _, data := range tvSearchResponse.Data {
+			medias = append(medias, entities.MediaEntity{
+				Title:    data.Name,
+				Runtime:  data.Runtime,
+				Type:     "tv",
+				ImageURL: data.ImageURL,
+				Year:     data.Year,
+			})
+		}
+	}
+
 	if err != nil {
-		fmt.Printf("Failed to read response body: %v\n", err)
-		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+		fmt.Printf("Failed to convert response to media structs: %v\n", err)
+		http.Error(w, "Failed to convert response to media structs", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+
+	fmt.Printf("Inserting media into database: %v\n", medias)
+	err = s.Repository.CreateMedia(medias)
+	if err != nil {
+		// this is a band aid for spelling changing between what the user entered and what TVDB returns
+		// for exampel K Pop Demon Hunters returns as KPop Demon Hunters, which causes a duplicate key error when trying to insert into the database
+		if strings.Contains(err.Error(), "duplicate key") {
+			fmt.Printf("Media already exists in database: %v\n", err)
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(medias)
+			return
+		}
+		fmt.Printf("Failed to insert media into database: %v\n", err)
+		http.Error(w, "Failed to insert media into database", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(medias)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(body)
+	json.NewEncoder(w).Encode(medias)
 }

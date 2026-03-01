@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/axschech/rockbot-backend/internal/database"
 	"github.com/axschech/rockbot-backend/internal/entities"
+	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
@@ -47,7 +49,7 @@ func (r *Repository) QueryMedia(media entities.MediaEntity) ([]entities.MediaEnt
 	var medias []entities.MediaEntity
 	for rows.Next() {
 		var m entities.MediaEntity
-		if err := rows.Scan(&m.ID, &m.Title, &m.Runtime, &m.Type, &m.ImageURL); err != nil {
+		if err := rows.Scan(&m.ID, &m.Title, &m.Runtime, &m.Type, &m.ImageURL, &m.Year); err != nil {
 			return nil, err
 		}
 		medias = append(medias, m)
@@ -56,12 +58,28 @@ func (r *Repository) QueryMedia(media entities.MediaEntity) ([]entities.MediaEnt
 	return medias, nil
 }
 
-func (r *Repository) CreateMedia(media entities.MediaEntity) (entities.MediaEntity, error) {
-	err := r.db.P.QueryRow(r.Ctx, "INSERT INTO media (title, runtime, type, image_url) VALUES ($1, $2, $3, $4) RETURNING id", media.Title, media.Runtime, media.Type, media.ImageURL).Scan(&media.ID)
-
-	if err != nil {
-		return entities.MediaEntity{}, err
+func (r *Repository) CreateMedia(media []entities.MediaEntity) error {
+	// need to add last updated
+	batch := &pgx.Batch{}
+	for _, m := range media {
+		batch.Queue(`INSERT INTO media (title, runtime, type, image_url, year) VALUES ($1, $2, $3, $4, $5) RETURNING id, title, runtime, type, image_url, year`, m.Title, m.Runtime, m.Type, m.ImageURL, m.Year)
 	}
 
-	return media, nil
+	br := r.db.P.SendBatch(r.Ctx, batch)
+
+	for i := 0; i < batch.Len(); i++ {
+		row, err := br.Query()
+		fmt.Printf("Batch result for index %d: %+v\n", i, row)
+		if err != nil {
+			br.Close()
+			return fmt.Errorf("batch execution failed on index %d: %w", i, err)
+		}
+
+	}
+
+	if err := br.Close(); err != nil {
+		return fmt.Errorf("failed to close batch results: %w", err)
+	}
+
+	return nil
 }

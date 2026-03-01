@@ -37,6 +37,8 @@ type TVSearchData struct {
 	ImageURL string `json:"image_url"`
 	Title    string `json:"title"`
 	Runtime  string `json:"runtime"`
+	Name     string `json:"name"`
+	Year     string `json:"year"`
 }
 
 type TVSearchResponse struct {
@@ -94,19 +96,7 @@ func (s *TVDBSource) Fetch(title string) (http.Response, error) {
 	return *resp, nil
 }
 
-func (s *TVDBSource) ToStruct(resp http.Response) (TVSearchResponse, error) {
-	defer resp.Body.Close()
-
-	var searchRes TVSearchResponse
-	err := json.NewDecoder(resp.Body).Decode(&searchRes)
-	if err != nil {
-		return TVSearchResponse{}, err
-	}
-
-	return searchRes, nil
-}
-
-func NewTVDBSource(cfg config.Source, client *http.Client) Sourcer {
+func NewTVDBSource(cfg config.Source, client *http.Client) *TVDBSource {
 	return &TVDBSource{Config: cfg, Client: client}
 }
 
