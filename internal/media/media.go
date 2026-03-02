@@ -22,6 +22,10 @@ func NewMedia(r repository.Repository, s external.Sourcer) *Media {
 	}
 }
 
+// GetOrSaveMedia accepts a title and media type (tv / movie)
+// It does fuzzy case insentive search against the database
+// If the media is found, it returns the media
+// If the media is not found, it fetches the media from the external source, saves it to the database, and returns it
 func (m *Media) GetOrSaveMedia(title string, mediaType string) ([]entities.MediaEntity, error) {
 	var (
 		medias []entities.MediaEntity
