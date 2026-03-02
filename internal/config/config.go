@@ -30,6 +30,7 @@ func MakeConfig() (Config, error) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	viper.AutomaticEnv()
+	// not sure how to get things working without this
 	viper.BindEnv("port", "PORT")
 	viper.BindEnv("db.host", "DB_HOST")
 	viper.BindEnv("db.user", "DB_USER")

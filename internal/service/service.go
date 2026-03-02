@@ -156,7 +156,7 @@ func (s *Service) GetMediaUsersWithUserIDHandler(w http.ResponseWriter, r *http.
 	}
 
 	user := user.NewUser(s.Repository)
-
+	// not sure if these checks should be in the handler or business logic
 	_, err = user.GetUserByID(id)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
