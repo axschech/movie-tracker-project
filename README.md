@@ -28,8 +28,9 @@ Use a base URL of `localhost:8080` if you are running in Docker.
 
 ## Progress Log
 You can see more of this in the git history of the repo. I worked about two hours a day, with about 4 hours on Saturday and Sunday.
-- It took about a day to get the service running and saving user data.
-- It took about two days to get to querying and saving media
+- It took about a day to get the service and DB running in Docker.
+- It took about two days to saving user data and to get to querying media.
+- It took the rest of the week to get to saving media and saving user media pairings.
 
 ## Structure
 
