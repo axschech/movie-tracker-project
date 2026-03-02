@@ -14,7 +14,7 @@ func NewUser(r repository.Repository) *User {
 }
 
 // TODO: Add more generic GetUser function?
-func (u *User) GetUserByID(id string) (entities.UserEntity, error) {
+func (u *User) GetUserByID(id int) (entities.UserEntity, error) {
 	user, err := u.R.GetUser(entities.UserEntity{ID: id})
 	if err != nil {
 		return entities.UserEntity{}, err

@@ -18,6 +18,7 @@ type Sourcer interface {
 type TVDBSource struct {
 	Config config.Source
 	Client *http.Client
+	Type   string
 }
 
 type TokenRequest struct {
@@ -81,7 +82,7 @@ func (s *TVDBSource) Fetch(title string) (http.Response, error) {
 		return http.Response{}, err
 	}
 
-	req, err := http.NewRequest("GET", s.Config.BaseURL+"/search?query="+title, nil)
+	req, err := http.NewRequest("GET", s.Config.BaseURL+"/search?language=en&type=series&query="+title, nil)
 	if err != nil {
 		return http.Response{}, err
 	}

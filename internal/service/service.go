@@ -2,12 +2,16 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/axschech/rockbot-backend/external"
 	"github.com/axschech/rockbot-backend/internal/config"
 	"github.com/axschech/rockbot-backend/internal/database/repository"
+	"github.com/axschech/rockbot-backend/internal/entities"
 	"github.com/axschech/rockbot-backend/internal/media"
+	"github.com/axschech/rockbot-backend/internal/media_user"
 	"github.com/axschech/rockbot-backend/internal/routing"
 	"github.com/axschech/rockbot-backend/internal/user"
 	"github.com/go-chi/chi/v5"
@@ -40,6 +44,8 @@ func (s *Service) Run() error {
 	s.Router.R.Route("/api", func(r chi.Router) {
 		r.Get("/user/{id}", s.GetUserHandler)
 		r.Post("/user", s.PostUserHandler)
+		r.Get("/media/user/{id}", s.GetMediaUsersWithUserIDHandler)
+		r.Post("/media/user", s.PostMediaUserHandler)
 		r.Get("/search/media", s.QueryMediaHandler)
 	})
 
@@ -51,7 +57,13 @@ func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	u := user.NewUser(s.Repository)
 	userId := chi.URLParam(r, "id")
 
-	user, err := u.GetUserByID(userId)
+	id, err := strconv.Atoi(userId)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	user, err := u.GetUserByID(id)
 
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
@@ -132,4 +144,75 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(medias)
+}
+
+func (s *Service) GetMediaUsersWithUserIDHandler(w http.ResponseWriter, r *http.Request) {
+	userId := chi.URLParam(r, "id")
+
+	id, err := strconv.Atoi(userId)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	user := user.NewUser(s.Repository)
+
+	_, err = user.GetUserByID(id)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	withMedia := r.URL.Query().Get("with_media") == "true"
+
+	um := media_user.NewMediaUser(s.Repository)
+
+	mediaUsersWithMedia, err := um.QueryMediaUsersWithUserID(id, withMedia)
+	if err != nil {
+		fmt.Printf("Failed to query media users: %+v\n", err)
+		http.Error(w, "Failed to query media users", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(mediaUsersWithMedia)
+}
+
+func (s *Service) PostMediaUserHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID  int    `json:"user_id"`
+		MediaID int    `json:"media_id"`
+		Status  string `json:"status"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Printf("Error decoding request body: %+v\n", err)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	mediaUser := entities.MediaUserEntity{
+		UserID:  req.UserID,
+		MediaID: req.MediaID,
+		Status:  req.Status,
+	}
+
+	user := user.NewUser(s.Repository)
+
+	_, err := user.GetUserByID(mediaUser.UserID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	um := media_user.NewMediaUser(s.Repository)
+
+	createdMediaUser, err := um.SaveMediaUser(mediaUser)
+	if err != nil {
+		http.Error(w, "Failed to create media user", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(createdMediaUser)
 }

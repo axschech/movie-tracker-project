@@ -8,3 +8,8 @@ type MediaUserEntity struct {
 	// tried using an enum here but it was taking too much time, might come back
 	Status string `json:"status"`
 }
+
+type MediaUserWithMediaEntity struct {
+	MediaUser MediaUserEntity `json:"media_user"`
+	Medias    []MediaEntity   `json:"medias"`
+}

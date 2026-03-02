@@ -69,7 +69,7 @@ func (r *Repository) CreateMedia(media []entities.MediaEntity) ([]entities.Media
 
 	for i := 0; i < batch.Len(); i++ {
 		err := br.QueryRow().Scan(&media[i].ID, &media[i].Title, &media[i].Runtime, &media[i].Type, &media[i].ImageURL, &media[i].Year)
-		fmt.Printf("Inserted media into database: %v\n", media[i])
+		fmt.Printf("Inserted media into database: %+v\n", media[i])
 		if err != nil {
 			br.Close()
 			return nil, fmt.Errorf("batch execution failed on index %d: %w", i, err)
@@ -81,4 +81,41 @@ func (r *Repository) CreateMedia(media []entities.MediaEntity) ([]entities.Media
 	}
 
 	return media, nil
+}
+
+func (r *Repository) CreateMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
+	// keeping this single update for now
+	err := r.db.P.QueryRow(r.Ctx, "INSERT INTO media_user (user_id, media_id, status) VALUES ($1, $2, $3) RETURNING id", mediaUser.UserID, mediaUser.MediaID, mediaUser.Status).Scan(&mediaUser.ID)
+
+	if err != nil {
+		return entities.MediaUserEntity{}, err
+	}
+
+	return mediaUser, nil
+}
+
+func (r *Repository) GetMediaUsers(mediaUser entities.MediaUserEntity, withMedia bool) ([]entities.MediaUserWithMediaEntity, error) {
+	sql := "SELECT id, user_id, media_id, status FROM media_user WHERE user_id=$1 or media_id=$2"
+
+	if withMedia {
+		sql = "SELECT mu.id, mu.user_id, mu.media_id, mu.status, m.id, m.title, m.runtime, m.type, m.image_url, m.year FROM media_user mu JOIN media m ON mu.media_id = m.id WHERE mu.user_id=$1 or mu.media_id=$2"
+	}
+	rows, err := r.db.P.Query(r.Ctx, sql, mediaUser.UserID, mediaUser.MediaID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var mediaUsers []entities.MediaUserWithMediaEntity
+	var m entities.MediaEntity
+	for rows.Next() {
+		var mu entities.MediaUserWithMediaEntity
+		if err := rows.Scan(&mu.MediaUser.ID, &mu.MediaUser.UserID, &mu.MediaUser.MediaID, &mu.MediaUser.Status, &m.ID, &m.Title, &m.Runtime, &m.Type, &m.ImageURL, &m.Year); err != nil {
+			return nil, err
+		}
+		mu.Medias = append(mu.Medias, m)
+		mediaUsers = append(mediaUsers, mu)
+	}
+
+	return mediaUsers, nil
 }
