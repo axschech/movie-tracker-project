@@ -94,6 +94,7 @@ func (r *Repository) CreateMediaUser(mediaUser entities.MediaUserEntity) (entiti
 	return mediaUser, nil
 }
 
+// TODO: support conditionally joining media table if withMedia is true
 func (r *Repository) GetMediaUsers(mediaUser entities.MediaUserEntity, withMedia bool) ([]entities.MediaUserWithMediaEntity, error) {
 	sql := "SELECT id, user_id, media_id, status FROM media_user WHERE user_id=$1 or media_id=$2"
 
