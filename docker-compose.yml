@@ -10,6 +10,9 @@ services:
       - DB_PASSWORD=rockbotpassword
       - DB_DATABASE=rockbotdb
       - DB_HOST=rockbot-db
+      - TV_SOURCE_BASE_URL=https://api4.thetvdb.com/v4
+      - TV_SOURCE_API_KEY=${TV_DB_API_KEY}
+      - TV_SOURCE_PIN=${TV_DB_PIN}
   rockbot-db:
     image: postgres:latest
     environment:
