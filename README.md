@@ -1,6 +1,7 @@
 # Movie Tracker
 
 ## Run the application
+- You'll need a TVDB api key and PIN, you can sign up for an account, then create a `.env` file with the values from `.env.sample` filled in.
 - Make sure Docker is running
 - Run `make build up migrate logs`
 - To stop the application run `make down`
