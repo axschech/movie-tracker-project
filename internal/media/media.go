@@ -38,7 +38,7 @@ func (m *Media) GetOrSaveMedia(title string, mediaType string) ([]entities.Media
 		fmt.Printf("Failed to query media from database: %v\n", err)
 		return nil, fmt.Errorf("failed to query media: %w", err)
 	}
-	fmt.Printf("Queried media from database: %v\n", medias)
+
 	// could update this to get both results and check if the length is equal?
 	// or could do a more refined checked instead of doing things in batches
 	// might also just allow user to manually insert media
@@ -52,6 +52,8 @@ func (m *Media) GetOrSaveMedia(title string, mediaType string) ([]entities.Media
 		fmt.Printf("Failed to fetch media from external source: %v\n", err)
 		return nil, fmt.Errorf("failed to fetch media from external source: %w", err)
 	}
+
+	fmt.Printf("Fetched media from external source: %v\n", resp)
 
 	// not sure if this belongs here, might need to be imported from source package
 	var tvSearchResponse external.TVSearchResponse
@@ -78,12 +80,9 @@ func (m *Media) GetOrSaveMedia(title string, mediaType string) ([]entities.Media
 		return nil, fmt.Errorf("failed to convert response to media structs: %w", err)
 	}
 
-	fmt.Printf("Inserting media into database: %v\n", medias)
-
 	medias, err = m.R.CreateMedia(medias)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
-			fmt.Printf("Media already exists in database: %v\n", err)
 			return medias, nil
 		}
 

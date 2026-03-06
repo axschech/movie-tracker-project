@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/axschech/rockbot-backend/internal/config"
 	"github.com/axschech/rockbot-backend/internal/database"
@@ -26,10 +27,13 @@ func main() {
 
 	router := routing.NewRouter(cfg.Port)
 
+	httpClient := &http.Client{}
+
 	service := service.NewService(
 		cfg,
 		*r,
 		router,
+		httpClient,
 	)
 
 	err = service.Run()
