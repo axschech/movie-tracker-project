@@ -83,3 +83,11 @@ You can see more of this in the git history of the repo. I worked about two hour
 
 #### Migration
 - This is just an SQL file to create the tables and insert some sample data.
+
+## Testing
+Tests use a combo of mocking interfaces, mocking http roundTripper, and using the pgx mock function
+
+To run tests:
+- Run `make test` to run tests and generate coverage
+- Run `make generate-coverage` to generate an HTML file with a coverage report
+- Run `open coverage.html` to view the coverage report

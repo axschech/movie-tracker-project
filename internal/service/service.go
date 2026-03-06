@@ -21,17 +21,20 @@ type Service struct {
 	Config     config.Config
 	Repository repository.Repository
 	Router     routing.Router
+	HTTPClient *http.Client
 }
 
 func NewService(
 	cfg config.Config,
 	r repository.Repository,
 	router routing.Router,
+	httpClient *http.Client,
 ) *Service {
 	return &Service{
 		Config:     cfg,
 		Repository: r,
 		Router:     router,
+		HTTPClient: httpClient,
 	}
 }
 
@@ -59,6 +62,7 @@ func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.Atoi(userId)
 	if err != nil {
+		fmt.Printf("error converting user ID to int: %+v\n", err)
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
@@ -66,6 +70,7 @@ func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	user, err := u.GetUserByID(id)
 
 	if err != nil {
+		fmt.Printf("error getting user by ID: %+v\n", err)
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
@@ -77,15 +82,15 @@ func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Service) PostUserHandler(w http.ResponseWriter, r *http.Request) {
 	u := user.NewUser(s.Repository)
 
-	var req struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-	}
+	var req PostUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Printf("Error decoding request body: %+v\n", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+
+	fmt.Printf("Received request to create user: %+v\n", req)
 
 	if req.Username == "" || req.Email == "" {
 		http.Error(w, "Username and email are required", http.StatusBadRequest)
@@ -94,6 +99,7 @@ func (s *Service) PostUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	user, err := u.Register(req.Username, req.Email)
 	if err != nil {
+		fmt.Printf("Error creating user: %+v\n", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
@@ -132,12 +138,13 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 		PIN:     s.Config.TVSource.PIN,
 	}
 
-	sourcer := external.GetSource(&http.Client{}, source, mediaType)
+	sourcer := external.GetSource(s.HTTPClient, source, mediaType)
 
 	nm := media.NewMedia(s.Repository, sourcer)
 
 	medias, err := nm.GetOrSaveMedia(query, mediaType)
 	if err != nil {
+		fmt.Printf("Failed to get or save media: %+v\n", err)
 		http.Error(w, "Failed to get or save media", http.StatusInternalServerError)
 		return
 	}
@@ -179,11 +186,7 @@ func (s *Service) GetMediaUsersWithUserIDHandler(w http.ResponseWriter, r *http.
 }
 
 func (s *Service) PostMediaUserHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserID  int    `json:"user_id"`
-		MediaID int    `json:"media_id"`
-		Status  string `json:"status"`
-	}
+	var req PostMediaUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		fmt.Printf("Error decoding request body: %+v\n", err)
