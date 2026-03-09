@@ -22,6 +22,14 @@ func (u *User) GetUserByID(id int) (entities.UserEntity, error) {
 	return user, nil
 }
 
+func (u *User) GetUserByEmail(email string) (entities.UserEntity, error) {
+	user, err := u.R.GetUser(entities.UserEntity{Email: email})
+	if err != nil {
+		return entities.UserEntity{}, err
+	}
+	return user, nil
+}
+
 func (u *User) Register(username, email string) (entities.UserEntity, error) {
 	user, err := u.R.CreateUser(entities.UserEntity{Username: username, Email: email})
 	if err != nil {

@@ -9,6 +9,6 @@ type MediaEntity struct {
 	Title    string `json:"title"`
 	Runtime  string `json:"runtime"`
 	Type     string `json:"type"`
-	ImageURL string `json:"image_url"`
+	ImageURL string `json:"imageUrl"`
 	Year     string `json:"year"`
 }

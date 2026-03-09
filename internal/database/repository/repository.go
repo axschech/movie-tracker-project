@@ -40,7 +40,7 @@ func (r *Repository) CreateUser(user entities.UserEntity) (entities.UserEntity, 
 }
 
 func (r *Repository) QueryMedia(media entities.MediaEntity) ([]entities.MediaEntity, error) {
-	rows, err := r.db.P.Query(r.Ctx, "SELECT * FROM media WHERE title ILIKE $1", "%"+media.Title+"%")
+	rows, err := r.db.P.Query(r.Ctx, "SELECT id, title, runtime, type, image_url, year FROM media WHERE title ILIKE $1", "%"+media.Title+"%")
 
 	if err != nil {
 		return nil, err
@@ -83,9 +83,22 @@ func (r *Repository) CreateMedia(media []entities.MediaEntity) ([]entities.Media
 	return media, nil
 }
 
+// may change this to insert or update
 func (r *Repository) CreateMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
 	// keeping this single update for now
-	err := r.db.P.QueryRow(r.Ctx, "INSERT INTO media_user (user_id, media_id, status) VALUES ($1, $2, $3) RETURNING id", mediaUser.UserID, mediaUser.MediaID, mediaUser.Status).Scan(&mediaUser.ID)
+	err := r.db.P.QueryRow(r.Ctx, `INSERT INTO media_user (user_id, media_id, status) VALUES ($1, $2, $3) RETURNING id`, mediaUser.UserID, mediaUser.MediaID, mediaUser.Status).Scan(&mediaUser.ID)
+
+	if err != nil {
+		return entities.MediaUserEntity{}, err
+	}
+
+	return mediaUser, nil
+}
+
+// may not need this after insert or update implementation
+func (r *Repository) UpdateMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
+	// keeping this single update for now
+	err := r.db.P.QueryRow(r.Ctx, `UPDATE media_user SET status=$1 WHERE id=$2 or (media_id=$3 AND user_id=$4) RETURNING id`, mediaUser.Status, mediaUser.ID, mediaUser.MediaID, mediaUser.UserID).Scan(&mediaUser.ID)
 
 	if err != nil {
 		return entities.MediaUserEntity{}, err
@@ -114,7 +127,7 @@ func (r *Repository) GetMediaUsers(mediaUser entities.MediaUserEntity, withMedia
 		if err := rows.Scan(&mu.MediaUser.ID, &mu.MediaUser.UserID, &mu.MediaUser.MediaID, &mu.MediaUser.Status, &m.ID, &m.Title, &m.Runtime, &m.Type, &m.ImageURL, &m.Year); err != nil {
 			return nil, err
 		}
-		mu.Medias = append(mu.Medias, m)
+		mu.Media = m
 		mediaUsers = append(mediaUsers, mu)
 	}
 

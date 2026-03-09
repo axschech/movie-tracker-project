@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/axschech/rockbot-backend/external"
@@ -45,10 +46,11 @@ func Ping(w http.ResponseWriter, r *http.Request) {
 func (s *Service) Run() error {
 	s.Router.R.Get("/ping", Ping)
 	s.Router.R.Route("/api", func(r chi.Router) {
-		r.Get("/user/{id}", s.GetUserHandler)
+		r.Get("/user", s.GetUserHandler)
 		r.Post("/user", s.PostUserHandler)
 		r.Get("/media/user/{id}", s.GetMediaUsersWithUserIDHandler)
 		r.Post("/media/user", s.PostMediaUserHandler)
+		r.Put("/media/user", s.PutMediaUserHandler)
 		r.Get("/search/media", s.QueryMediaHandler)
 	})
 
@@ -58,12 +60,31 @@ func (s *Service) Run() error {
 // handlers should probably be their own structs, with an interface called Handlerer
 func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	u := user.NewUser(s.Repository)
-	userId := chi.URLParam(r, "id")
+	userId := r.URL.Query().Get("id")
+	email := r.URL.Query().Get("email")
+
+	if userId == "" && email == "" {
+		http.Error(w, "user ID or email is required", http.StatusBadRequest)
+		return
+	}
+
+	if email != "" {
+		user, err := u.GetUserByEmail(email)
+		if err != nil {
+			fmt.Printf("error getting user by email: %+v\n", err)
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(user)
+		return
+	}
 
 	id, err := strconv.Atoi(userId)
 	if err != nil {
 		fmt.Printf("error converting user ID to int: %+v\n", err)
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
@@ -71,7 +92,7 @@ func (s *Service) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		fmt.Printf("error getting user by ID: %+v\n", err)
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
@@ -86,21 +107,21 @@ func (s *Service) PostUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		fmt.Printf("Error decoding request body: %+v\n", err)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
 	fmt.Printf("Received request to create user: %+v\n", req)
 
 	if req.Username == "" || req.Email == "" {
-		http.Error(w, "Username and email are required", http.StatusBadRequest)
+		http.Error(w, "username and email are required", http.StatusBadRequest)
 		return
 	}
 
 	user, err := u.Register(req.Username, req.Email)
 	if err != nil {
 		fmt.Printf("Error creating user: %+v\n", err)
-		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 
@@ -111,13 +132,13 @@ func (s *Service) PostUserHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		http.Error(w, "Query parameter is required", http.StatusBadRequest)
+		http.Error(w, "query parameter is required", http.StatusBadRequest)
 		return
 	}
 
 	t := r.URL.Query().Get("type")
 	if t == "" {
-		http.Error(w, "Type parameter is required", http.StatusBadRequest)
+		http.Error(w, "type parameter is required", http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +149,7 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if mediaType == "" {
-		http.Error(w, "Invalid media type", http.StatusBadRequest)
+		http.Error(w, "invalid media type", http.StatusBadRequest)
 		return
 	}
 
@@ -145,7 +166,7 @@ func (s *Service) QueryMediaHandler(w http.ResponseWriter, r *http.Request) {
 	medias, err := nm.GetOrSaveMedia(query, mediaType)
 	if err != nil {
 		fmt.Printf("Failed to get or save media: %+v\n", err)
-		http.Error(w, "Failed to get or save media", http.StatusInternalServerError)
+		http.Error(w, "failed to get or save media", http.StatusInternalServerError)
 		return
 	}
 
@@ -158,7 +179,8 @@ func (s *Service) GetMediaUsersWithUserIDHandler(w http.ResponseWriter, r *http.
 
 	id, err := strconv.Atoi(userId)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		fmt.Printf("error converting user ID to int: %+v\n", err)
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
@@ -166,18 +188,18 @@ func (s *Service) GetMediaUsersWithUserIDHandler(w http.ResponseWriter, r *http.
 	// not sure if these checks should be in the handler or business logic
 	_, err = user.GetUserByID(id)
 	if err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
 	withMedia := r.URL.Query().Get("with_media") == "true"
-
+	fmt.Printf("Received request to get media users for user ID %d with media: %t\n", id, withMedia)
 	um := media_user.NewMediaUser(s.Repository)
 
 	mediaUsersWithMedia, err := um.QueryMediaUsersWithUserID(id, withMedia)
 	if err != nil {
 		fmt.Printf("Failed to query media users: %+v\n", err)
-		http.Error(w, "Failed to query media users", http.StatusInternalServerError)
+		http.Error(w, "failed to query media users", http.StatusInternalServerError)
 		return
 	}
 
@@ -190,7 +212,7 @@ func (s *Service) PostMediaUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		fmt.Printf("Error decoding request body: %+v\n", err)
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -204,18 +226,59 @@ func (s *Service) PostMediaUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err := user.GetUserByID(mediaUser.UserID)
 	if err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
 	um := media_user.NewMediaUser(s.Repository)
 
-	createdMediaUser, err := um.SaveMediaUser(mediaUser)
+	createdMediaUser, err := um.CreateMediaUser(mediaUser)
 	if err != nil {
-		http.Error(w, "Failed to create media user", http.StatusInternalServerError)
+		http.Error(w, "failed to create media user", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(createdMediaUser)
+}
+
+func (s *Service) PutMediaUserHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received request to update media user")
+	// might not need this, could allow continous insert and just get the last one, using this for now
+	var req PutMediaUserRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Printf("Error decoding request body: %+v\n", err)
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.MediaUserID == 0 {
+		http.Error(w, "media user ID is required", http.StatusBadRequest)
+		return
+	}
+
+	allowedStatuses := []string{"not watched", "will watch", "watching", "watched", "wont watch"}
+	status := req.Status
+	if status == "" || !slices.Contains(allowedStatuses, status) {
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+
+	mediaUser := entities.MediaUserEntity{
+		ID:     req.MediaUserID,
+		Status: req.Status,
+	}
+
+	um := media_user.NewMediaUser(s.Repository)
+
+	updatedMediaUser, err := um.UpdateMediaUser(mediaUser)
+	if err != nil {
+		fmt.Printf("Failed to update media user: %+v\n", err)
+		http.Error(w, "failed to update media user", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updatedMediaUser)
 }
