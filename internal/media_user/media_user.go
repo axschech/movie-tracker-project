@@ -15,8 +15,14 @@ func NewMediaUser(r repository.Repository) *MediaUser {
 	return &MediaUser{R: r}
 }
 
-func (um *MediaUser) SaveMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
+func (um *MediaUser) CreateMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
+	// may want to update this to insert or update
 	return um.R.CreateMediaUser(mediaUser)
+}
+
+func (um *MediaUser) UpdateMediaUser(mediaUser entities.MediaUserEntity) (entities.MediaUserEntity, error) {
+	// may want to update this to insert or update
+	return um.R.UpdateMediaUser(mediaUser)
 }
 
 func (um *MediaUser) QueryMediaUsersWithUserID(userID int, withMedia bool) ([]entities.MediaUserWithMediaEntity, error) {
